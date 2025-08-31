@@ -1,7 +1,7 @@
 
 <div style="text-align: center;">
   
-# tb_tesseract.js - 藏文文字识别引擎
+# TBocr_tesseractJS - 藏文文字识别引擎
     
 <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
 <a href="https://gitee.com/Pemawangchuk/tb_tesseract.js"><img src="https://img.shields.io/badge/Gitee-Pemawangchuk-blue.svg" alt="Gitee"></a>
@@ -15,12 +15,13 @@
 <div style="text-align: center;">
     <img src="./result/home.png" alt="Tibetan OCR">
 </div>
-<p>Tesseract OCR 是由 Google 维护的开源光学字符识别引擎。本项目包含 Tesseract 4 中 LSTM OCR 引擎的专用训练模型，所有数据均遵循 Apache-2.0 许可协议。tb_tesseract.js 是基于 Tesseract.js 开发的 JavaScript 项目，专注于藏文文字识别。该库支持浏览器和 Node.js 环境，无需安装原生依赖即可实现藏文图像到文本的高效转换。</p>
+<p>Tesseract OCR 是由 Google 维护的开源光学字符识别引擎。本项目包含 Tesseract 4 中 LSTM OCR 引擎的专用训练模型，所有数据均遵循 Apache-2.0 许可协议。TBocr_tesseractJS 是基于 Tesseract.js 开发的 JavaScript 项目，专注于藏文文字识别。该库支持浏览器和 Node.js 环境，无需安装原生依赖即可实现藏文图像到文本的高效转换。</p>
 
-### 系统操作流程视频
-<div style="text-align: center;">
+
+<a href="https://live.csdn.net/v/491444?spm=1001.2014.3001.5501">➡️系统操作流程视频</a>
+<!-- <div style="text-align: center;">
   <video src="./images/ocr系统操作流程.mp4" alt="Tibetan OCR" controls></video>
-</div>
+</div> -->
 
 ### 主要功能
 - 兼容多种图像格式（PNG/JPG/GIF/BMP/TIFF等）
