@@ -1,0 +1,3755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍智能文字识别 - Tesseract.js 多语言 OCR</title>
+    <!-- 预加载藏文字体 -->
+    <link rel="preload" href="/fontfile/方正藏意汉体简体.TTF" as="font" type="font/ttf" crossorigin>
+    <!-- PDF.js 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="/dist/tesseract.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        /* 自定义藏文字体 */
+        @font-face {
+            font-family: 'FangZheng-Zangyi';
+            src: url('/fontfile/方正藏意汉体简体.TTF') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        
+        /* 传统藏式风格配色 */
+        :root {
+            --tibetan-red: #990000;      /* 藏红，对应传统寺庙枯红色 */
+            --tibetan-gold: #bf9b30;     /* 藏金，对应传统金黄色 */
+            --tibetan-blue: #3a75c4;     /* 深模蓝，对应天空蓝 */
+            --tibetan-orange: #c1651a;   /* 赤土色，对应藏族地区的土壁色 */
+            --tibetan-purple: #5d478b;   /* 粗花紫，对应藏医常用的五彩维他兰色 */
+            --tibetan-cream: #f2e9d9;    /* 焖牛乳色，对应酒酪颜色 */
+            --tibetan-brown: #663300;    /* 大型棕，对应藏族服饰中常见的深棕色 */
+            --tibetan-maroon: #800000;   /* 青稀色，对应寺庙柟炉和僧衣色 */
+            --tibetan-turquoise: #40e0d0; /* 绵粒绿松石色，藏族珍见宝石 */
+            --tibetan-coral: #ff7f50;    /* 珊瑚红，藏族珍见装饰珠宝 */
+        }
+        
+        /* 全局字体设置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'FangZheng-Zangyi', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        /* 特别指定所有文本元素使用藏文字体 */
+        h1, h2, h3, h4, h5, h6, p, span, div, button, input, select, textarea, label {
+            font-family: 'FangZheng-Zangyi', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            font-family: 'FangZheng-Zangyi', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            /* 纯白色背景 */
+            background: #ffffff;
+            background-attachment: fixed;
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+            transition: background 0.8s ease;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 
+                0 20px 40px rgba(0, 0, 0, 0.1),
+                0 1px 0px rgba(255, 255, 255, 0.8) inset,
+                0 -1px 0px rgba(0, 0, 0, 0.05) inset;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--tibetan-red) 0%, var(--tibetan-maroon) 100%);
+            color: white;
+            padding: 24px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border-bottom: 4px solid var(--tibetan-gold);
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #ffffff, #f0f8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.95;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
+        }
+
+        .content {
+            padding: 32px 40px;
+            background: rgba(255, 255, 255, 0.7);
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 40px;
+            min-height: calc(100vh - 120px);
+        }
+        
+        .welcome-message {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+            border-radius: 24px;
+            margin-bottom: 32px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+        }
+        
+        .welcome-content {
+            text-align: center;
+            max-width: 500px;
+            padding: 40px 20px;
+        }
+        
+        .welcome-icon {
+            font-size: 4rem;
+            margin-bottom: 24px;
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+        
+        .welcome-content h2 {
+            font-size: 2rem;
+            color: #1e293b;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+        
+        .welcome-content p {
+            font-size: 1.1rem;
+            color: #64748b;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .feature-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        
+        .feature-icon {
+            font-size: 1.5rem;
+        }
+        
+        .feature-item span:last-child {
+            font-size: 0.9rem;
+            color: #475569;
+            font-weight: 500;
+        }
+        
+        .arrow-hint {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        .arrow {
+            font-size: 1.2rem;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+        
+        .controls-panel {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            height: fit-content;
+            position: sticky;
+            top: 32px;
+        }
+        
+        .controls-panel h2 {
+            font-size: 1.3rem;
+            margin-bottom: 24px;
+            color: #1e293b;
+            font-weight: 600;
+            text-align: center;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .controls-panel .upload-section {
+            background: linear-gradient(145deg, #f8fafc, #ffffff);
+            border: 2px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 24px 16px;
+            text-align: center;
+            margin-bottom: 24px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .controls-panel .upload-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.05) 0%, transparent 70%);
+            transform: scale(0);
+            transition: transform 0.4s ease;
+        }
+
+        .controls-panel .upload-section:hover {
+            border-color: #667eea;
+            background: linear-gradient(145deg, #f0f4ff, #f8fafc);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.1);
+        }
+
+        .controls-panel .upload-section:hover::before {
+            transform: scale(1);
+        }
+
+        .controls-panel .upload-section.dragover {
+            border-color: #667eea;
+            background: linear-gradient(145deg, #eef2ff, #f0f4ff);
+            box-shadow: 0 12px 25px rgba(102, 126, 234, 0.15);
+        }
+        
+        .controls-panel .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            width: 100%;
+        }
+
+        .controls-panel .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            background: linear-gradient(135deg, #7c8fe8 0%, #8a5aa8 100%);
+        }
+        
+        .controls-panel .upload-section p {
+            font-size: 0.9rem;
+            margin: 8px 0 4px 0;
+            color: #64748b;
+        }
+        
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+            margin: 20px 0;
+        }
+        
+        .diagnostic-section {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 20px;
+        }
+        
+        .diagnostic-section h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #475569;
+            font-weight: 600;
+        }
+        
+        .diagnostic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .diagnostic-label {
+            color: #64748b;
+        }
+        
+        .diagnostic-value {
+            color: #1e293b;
+            font-weight: 500;
+        }
+        
+        .diagnostic-tip {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            color: #9a3412;
+            line-height: 1.4;
+        }
+
+        .upload-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.05) 0%, transparent 70%);
+            transform: scale(0);
+            transition: transform 0.4s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #667eea;
+            background: linear-gradient(145deg, #f8fafc, #ffffff);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .upload-section:hover::before {
+            transform: scale(1);
+        }
+
+        .upload-section.dragover {
+            border-color: #667eea;
+            background: linear-gradient(145deg, #eef2ff, #f0f4ff);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 25px 50px rgba(102, 126, 234, 0.2);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, var(--tibetan-gold) 0%, var(--tibetan-orange) 100%);
+            color: white;
+            border: none;
+            padding: 18px 36px;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 8px 25px rgba(218, 165, 32, 0.4);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(139, 0, 0, 0.5);
+            background: linear-gradient(135deg, var(--tibetan-red) 0%, var(--tibetan-maroon) 100%);
+        }
+
+        .upload-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .language-section {
+            margin-bottom: 24px;
+        }
+
+        .language-section label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1e293b;
+            font-size: 1rem;
+        }
+
+        .language-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            background: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            appearance: none;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%236b7280" d="M6 8L0 0h12L6 8z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            cursor: pointer;
+        }
+
+        .language-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .language-select:hover {
+            border-color: #cbd5e1;
+        }
+
+        .quick-mode {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border: 1px solid #f59e0b;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .quick-mode::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
+        }
+        
+        .toggle-btn {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-btn:hover {
+            background: #e9ecef;
+        }
+
+        .options-section {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 16px;
+            background: rgba(248, 250, 252, 0.8);
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .option-group {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            transition: all 0.3s ease;
+        }
+
+        .option-group h3 {
+            margin-bottom: 12px;
+            color: #1e293b;
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-item:hover {
+            background: #f8fafc;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+            cursor: pointer;
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            user-select: none;
+            font-weight: 400;
+            font-size: 0.9rem;
+        }
+
+        .results-section {
+            display: none;
+            flex-direction: column;
+            gap: 24px;
+            margin-top: 32px;
+            background: white;
+            padding: 32px;
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .result-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        
+        .image-preview {
+            text-align: center;
+        }
+        
+        .text-output {
+            background: linear-gradient(145deg, #f8fafc, #ffffff);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .image-preview {
+            text-align: center;
+        }
+
+        .image-preview h3 {
+            margin-bottom: 24px;
+            color: #1e293b;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 450px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+
+        .image-preview img:hover {
+            transform: scale(1.02);
+        }
+
+        .text-output {
+            background: linear-gradient(145deg, #f8fafc, #ffffff);
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+        }
+
+        .text-output h3 {
+            margin-bottom: 24px;
+            color: #1e293b;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .text-content {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            min-height: 250px;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+            color: #374151;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+            /* 添加滚动条支持 */
+            max-height: 500px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        /* 自定义滚动条样式 */
+        .text-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .text-content::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+            margin: 4px;
+        }
+        
+        .text-content::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        
+        .text-content::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6b46c1);
+        }
+        
+        /* Firefox 滚动条样式 */
+        .text-content {
+            scrollbar-width: thin;
+            scrollbar-color: #667eea #f1f5f9;
+        }
+        
+        /* 通用滚动条样式类 */
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: var(--tibetan-gold) var(--tibetan-cream);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: var(--tibetan-cream);
+            border-radius: 4px;
+            margin: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--tibetan-gold), var(--tibetan-orange));
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        
+        /* 结果操作按钮样式 */
+        .result-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .action-btn {
+            background: linear-gradient(135deg, var(--tibetan-gold), var(--tibetan-orange));
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .action-btn:hover {
+            background: linear-gradient(135deg, var(--tibetan-red), var(--tibetan-maroon));
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .copy-btn:hover {
+            background: linear-gradient(135deg, var(--tibetan-blue), var(--tibetan-purple));
+        }
+        
+        .save-btn:hover {
+            background: linear-gradient(135deg, var(--tibetan-mint), var(--tibetan-blue));
+        }
+        
+        /* 为长文本内容添加滚动提示 */
+        .text-content::after {
+            content: '';
+            display: block;
+            height: 0;
+            clear: both;
+        }
+        
+        .text-content:hover::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #5a6fd8, #6b46c1);
+        }
+        
+        /* 批量处理相关样式 */
+        .batch-info {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border: 1px solid #93c5fd;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .batch-info.show {
+            display: block;
+            animation: fadeInUp 0.4s ease;
+        }
+        
+        .batch-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .batch-title {
+            font-weight: 600;
+            color: #1e40af;
+            font-size: 1rem;
+        }
+        
+        .batch-progress {
+            font-size: 0.9rem;
+            color: #1d4ed8;
+        }
+        
+        .batch-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .batch-btn {
+            padding: 6px 12px;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            background: white;
+            color: #3b82f6;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .batch-btn:hover {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .batch-btn.danger {
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+        
+        .batch-btn.danger:hover {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .result-tabs {
+            display: flex;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+            gap: 4px;
+        }
+        
+        .result-tab {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            color: var(--tibetan-brown);
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .result-tab.active {
+            color: var(--tibetan-red);
+            border-bottom-color: var(--tibetan-gold);
+            font-weight: 600;
+            background: linear-gradient(135deg, rgba(218, 165, 32, 0.1), rgba(255, 140, 0, 0.1));
+        }
+        
+        .result-tab:hover {
+            color: var(--tibetan-red);
+            background: rgba(218, 165, 32, 0.05);
+        }
+        
+        .result-tab .tab-badge {
+            background: var(--tibetan-gold);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            margin-left: 6px;
+            min-width: 20px;
+            text-align: center;
+        }
+        
+        .result-panels {
+            position: relative;
+        }
+        
+        .result-panel {
+            display: none;
+        }
+        
+        .result-panel.active {
+            display: block !important;
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        /* 图片网格滚动条样式 */
+        .image-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .image-grid::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin: 4px;
+        }
+        
+        .image-grid::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--tibetan-gold), var(--tibetan-orange));
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        
+        .image-grid::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, var(--tibetan-orange), var(--tibetan-red));
+        }
+        
+        .image-item {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border: 2px solid var(--tibetan-cream);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .image-item:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+            border-color: var(--tibetan-gold);
+        }
+        
+        .image-item img {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: transform 0.3s ease;
+        }
+        
+        /* 放大镜效果 */
+        .image-item:hover img {
+            transform: scale(1.1);
+        }
+        
+        .image-item::before {
+            content: '🔍';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 6px 8px;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+        
+        .image-item.pdf-file {
+            border: 2px solid var(--tibetan-purple);
+            background: linear-gradient(135deg, rgba(175, 122, 197, 0.1), rgba(255, 255, 255, 0.9));
+        }
+        
+        .image-item.pdf-file::before {
+            content: '📄';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: var(--tibetan-purple);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            z-index: 10;
+        }
+        
+        .image-item:hover::before {
+            opacity: 1;
+        }
+        
+        .image-info {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        
+        .image-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background: var(--tibetan-cream);
+            color: var(--tibetan-brown);
+        }
+        
+        .status-processing {
+            background: linear-gradient(135deg, var(--tibetan-blue), var(--tibetan-purple));
+            color: white;
+        }
+        
+        .status-completed {
+            background: linear-gradient(135deg, var(--tibetan-gold), var(--tibetan-orange));
+            color: white;
+        }
+        
+        .status-error {
+            background: linear-gradient(135deg, var(--tibetan-red), var(--tibetan-maroon));
+            color: white;
+        }
+        
+        .combined-result {
+            background: linear-gradient(135deg, white 0%, var(--tibetan-cream) 100%);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            border: 2px solid var(--tibetan-gold);
+        }
+        
+        .combined-result h4 {
+            margin-bottom: 16px;
+            color: var(--tibetan-red);
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .combined-result .text-content {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid var(--tibetan-cream);
+            border-radius: 12px;
+            padding: 20px;
+            font-family: 'FangZheng-Zangyi', 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+            color: var(--tibetan-brown);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+            /* 添加滚动条支持 */
+            max-height: 400px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        /* 合并结果滚动条样式 */
+        .combined-result .text-content::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .combined-result .text-content::-webkit-scrollbar-track {
+            background: var(--tibetan-cream);
+            border-radius: 5px;
+            margin: 4px;
+        }
+        
+        .combined-result .text-content::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--tibetan-gold), var(--tibetan-orange));
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+        
+        .combined-result .text-content::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, var(--tibetan-red), var(--tibetan-maroon));
+        }
+        
+        /* 处理时间显示样式 */
+        .processing-time {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(248, 250, 252, 0.8));
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .time-label {
+            font-size: 0.9rem;
+            color: var(--tibetan-brown);
+            font-weight: 500;
+        }
+        
+        .time-display {
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+            min-width: 70px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .time-display.fast {
+            color: #10b981; /* 绿色 - 快 */
+            background: rgba(16, 185, 129, 0.1);
+        }
+        
+        .time-display.medium {
+            color: #f59e0b; /* 橙色 - 中 */
+            background: rgba(245, 158, 11, 0.1);
+        }
+        
+        .time-display.slow {
+            color: #ef4444; /* 红色 - 慢 */
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .processing-time {
+                padding: 4px 8px;
+            }
+            
+            .time-label {
+                font-size: 0.8rem;
+            }
+            
+            .time-display {
+                font-size: 0.8rem;
+                min-width: 60px;
+            }
+        }
+        
+        .result-separator {
+            border-top: 2px dashed #e2e8f0;
+            margin: 16px 0;
+            position: relative;
+        }
+        
+        .result-separator::after {
+            content: attr(data-filename);
+            background: white;
+            color: #64748b;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            position: absolute;
+            left: 50%;
+            top: -10px;
+            transform: translateX(-50%);
+            border: 1px solid #e2e8f0;
+        }
+
+        .progress-section {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-modal {
+            background: white;
+            border-radius: 24px;
+            padding: 40px 50px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            min-width: 400px;
+            max-width: 500px;
+            animation: slideInUp 0.4s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .progress-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            animation: rotateGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes rotateGlow {
+            0%, 100% {
+                transform: rotate(0deg);
+                filter: brightness(1);
+            }
+            50% {
+                transform: rotate(180deg);
+                filter: brightness(1.2) drop-shadow(0 0 10px rgba(102, 126, 234, 0.6));
+            }
+        }
+
+        .progress-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .progress-subtitle {
+            font-size: 1rem;
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+
+        .progress-bar-container {
+            position: relative;
+            width: 100%;
+            height: 8px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, 
+                var(--tibetan-gold) 0%, 
+                var(--tibetan-orange) 50%, 
+                var(--tibetan-red) 100%);
+            background-size: 200% 100%;
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 8px;
+            position: relative;
+            animation: shimmer 2s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 20px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(255, 255, 255, 0.4) 50%, 
+                transparent 100%);
+            animation: slideProgress 1.5s ease-in-out infinite;
+        }
+
+        @keyframes slideProgress {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .progress-percentage {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--tibetan-red);
+            margin-bottom: 16px;
+        }
+
+        .progress-status {
+            font-size: 0.95rem;
+            color: #475569;
+            margin-bottom: 20px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .progress-btn {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            color: #374151;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .progress-btn:hover {
+            background: #f9fafb;
+            border-color: #667eea;
+        }
+
+        .progress-btn.primary {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .progress-btn.primary:hover {
+            background: #5a6fd8;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+            margin-right: 12px;
+        }
+
+        /* 页面加载动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .container {
+            animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .header {
+            animation: slideInDown 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .upload-section {
+            animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both;
+        }
+
+        .language-section {
+            animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both;
+        }
+
+        .quick-mode {
+            animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.4s both;
+        }
+
+        /* 悬浮粒子效果 */
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 20%;
+            right: 10%;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        /* 渐变文字效果 */
+        .upload-section p {
+            background: linear-gradient(45deg, #64748b, #475569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 焦点可访问性 */
+        button:focus-visible,
+        select:focus-visible,
+        input:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 1200px) {
+            .content {
+                grid-template-columns: 1fr;
+                gap: 24px;
+                padding: 24px;
+            }
+            
+            .controls-panel {
+                order: -1;
+                position: static;
+                margin-bottom: 24px;
+            }
+            
+            .result-row {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .arrow-hint {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+            
+            .header {
+                padding: 20px 24px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .content {
+                padding: 16px;
+            }
+            
+            .controls-panel {
+                padding: 20px;
+            }
+            
+            .welcome-content {
+                padding: 20px;
+            }
+            
+            .welcome-content h2 {
+                font-size: 1.5rem;
+            }
+            
+            .welcome-icon {
+                font-size: 3rem;
+            }
+        }
+
+        /* 顶部通知系统 */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            pointer-events: none;
+        }
+
+        .notification {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 16px 24px;
+            margin-bottom: 12px;
+            box-shadow: 
+                0 10px 25px rgba(0, 0, 0, 0.1),
+                0 4px 12px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            max-width: 500px;
+            pointer-events: auto;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideInDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes slideOutUp {
+            from {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+        }
+
+        .notification.slide-out {
+            animation: slideOutUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .notification-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 2px;
+            color: #1e293b;
+        }
+
+        .notification-message {
+            font-size: 0.85rem;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .notification-close:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: #64748b;
+        }
+
+        /* 不同类型的通知样式 */
+        .notification.success {
+            border-left: 4px solid #10b981;
+        }
+
+        .notification.success .notification-icon {
+            color: #10b981;
+        }
+
+        .notification.error {
+            border-left: 4px solid #ef4444;
+        }
+
+        .notification.error .notification-icon {
+            color: #ef4444;
+        }
+
+        .notification.info {
+            border-left: 4px solid #3b82f6;
+        }
+
+        .notification.info .notification-icon {
+            color: #3b82f6;
+        }
+
+        .notification.warning {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .notification.warning .notification-icon {
+            color: #f59e0b;
+        }
+    </style>
+</head>
+<body >
+    <!-- 顶部通知容器 -->
+    <div class="notification-container" id="notificationContainer"></div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>智能文字识别工具-རིག་ནུས་ཡི་གེ་ངོས་འཛིན་མ་ལག།</h1>
+            <!-- <p>支持藏文、中文、英文等 100+ 种语言，一键提取图片中的文字</p> -->
+            <p>བོད་ཡིག་དང་། རྒྱ་ཡིག། དབྱིན་ཡིག་སོགས་སྐད་རིགས་100+རིགས་ལ་རྒྱབ་སྐྱོར་བྱེད། མཐེབ་གཅིག་གིས་པར་རིས་ནང་གི་ཡི་གེ་ཕྱིར་འདོན་བྱེད་ཐུབ།</p>
+        </div>
+
+        <div class="content">
+            <!-- 主要内容区域 -->
+            <div class="main-area">
+                <!-- 欢迎消息 -->
+                <div class="welcome-message" id="welcomeMessage">
+                    <div class="welcome-content">
+                        <div class="welcome-icon">🚀</div>
+                        <h2>欢迎使用智能文字识别工具</h2>
+                        <p>支持藏文、中文、英文等 100+ 种语言的文字识别</p>
+                        <div class="features">
+                            <div class="feature-item">
+                                <span class="feature-icon">🌍</span>
+                                <span>多语言支持</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">⚡</span>
+                                <span>快速识别</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">🎨</span>
+                                <span>高精度识别</span>
+                            </div>
+                        </div>
+                        <div class="arrow-hint">
+                            <span>请在右侧面板选择图片文件开始识别</span>
+                            <div class="arrow">➡️</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 批量处理信息面板 -->
+                <div class="batch-info" id="batchInfo">
+                    <div class="batch-summary">
+                        <div class="batch-title">📁 批量识别进行中</div>
+                        <div class="batch-progress" id="batchProgress">0/0 完成</div>
+                    </div>
+                    <div class="batch-actions">
+                        <button class="batch-btn" onclick="pauseBatchProcessing()">暂停</button>
+                        <button class="batch-btn danger" onclick="cancelBatchProcessing()">取消</button>
+                    </div>
+                </div>
+                
+                <!-- 进度显示模态框 -->
+                <div class="progress-section" id="progressSection">
+                    <div class="progress-modal">
+                        <div class="progress-icon" id="progressIcon">🔄</div>
+                        <div class="progress-title" id="progressTitle">正在处理...</div>
+                        <div class="progress-subtitle" id="progressSubtitle">请稍候，我们正在识别您的图片</div>
+                        
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="progressFill"></div>
+                        </div>
+                        
+                        <div class="progress-percentage" id="progressPercentage">0%</div>
+                        <div class="progress-status" id="progressStatus">准备中...</div>
+                        
+                        <div class="progress-actions" id="progressActions" style="display: none;">
+                            <button class="progress-btn" onclick="cancelLoading()">取消</button>
+                            <button class="progress-btn primary" onclick="switchToEnglish()" id="switchBtn" style="display: none;">切换到英语</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 结果显示 -->
+                <div class="results-section" id="resultsSection">
+                    <!-- 结果标签页 -->
+                    <div class="result-tabs" id="resultTabs" style="display: none;">
+                        <button class="result-tab active" data-tab="batch">
+                            🖼️ 待识别文件 <span class="tab-badge" id="batchCount">0</span>
+                        </button>
+                        <button class="result-tab" data-tab="combined">
+                            📦 识别结果 <span class="tab-badge" id="combinedCount">0</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 结果面板 -->
+                    <div class="result-panels">
+                        <!-- 识别结果面板 -->
+                        <div class="result-panel active" id="batchPanel">
+                            <div class="image-grid" id="imageGrid">
+                                <!-- 批量处理的图片和结果将在这里显示 -->
+                            </div>
+                        </div>
+                        
+                        <!-- 合并结果面板 -->
+                        <div class="result-panel" id="combinedPanel">
+                            <div class="combined-result">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                    <h4 style="margin: 0; color: var(--tibetan-red); font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                        📦 所有图片的合并识别结果
+                                    </h4>
+                                    <div style="display: flex; align-items: center; gap: 16px;">
+                                        <div class="processing-time">
+                                            <span class="time-label">⏱️ 识别用时：</span>
+                                            <span id="processingTimeDisplay" class="time-display">0.00 秒</span>
+                                        </div>
+                                        <div class="result-actions">
+                                            <button class="action-btn copy-btn" onclick="copyResult()" title="复制结果">
+                                                📋 复制
+                                            </button>
+                                            <button class="action-btn save-btn" onclick="saveResult()" title="保存为TXT文件">
+                                                💾 保存
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-content" id="combinedResult">合并结果将在这里显示...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 控制面板 -->
+            <div class="controls-panel">
+                <h2>🚀 开始识别</h2>
+                
+                <!-- 文件上传区域 -->
+                <div class="upload-section" id="uploadSection">
+                    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                        📁 选择图片文件
+                    </button>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*,.pdf" multiple>
+                    <p>或拖拽到此区域</p>
+                    <p style="color: #666; font-size: 0.8rem; margin-top: 8px;">
+                        支持 PNG, JPG, GIF, BMP, PDF 等格式<br>
+                        <strong>✨ 支持多张图片和 PDF 文件同时识别</strong>
+                    </p>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <!-- 语言选择 -->
+                <div class="language-section">
+                    <label for="languageSelect">选择识别语言：</label>
+                    <select id="languageSelect" class="language-select">
+                        <option value="bod" selected>🇹🇧 藏文 (Tibetan)</option>
+                        <option value="eng">🇬🇧 英语 (English)</option>
+                        <option value="chi_sim">🇨🇳 简体中文</option>
+                        <option value="chi_tra">🇨🇳 繁体中文</option>
+                        <option value="jpn">🇯🇵 日语 (Japanese)</option>
+                        <option value="kor">🇰🇷 韩语 (Korean)</option>
+                        <option value="ara">🇸🇦 阿拉伯语 (Arabic)</option>
+                        <option value="hin">🇮🇳 印地语 (Hindi)</option>
+                        <option value="rus">🇷🇺 俄语 (Russian)</option>
+                        <option value="fra">🇫🇷 法语 (French)</option>
+                        <option value="deu">🇩🇪 德语 (German)</option>
+                        <option value="spa">🇪🇸 西班牙语 (Spanish)</option>
+                        <option value="tha">🇹🇭 泰语 (Thai)</option>
+                        <option value="vie">🇻🇳 越南语 (Vietnamese)</option>
+                        <option value="eng+chi_sim">🇬🇧+🇨🇳 英语+简体中文</option>
+                        <option value="eng+bod">🇬🇧+🇹🇧 英语+藏文</option>
+                        <option value="chi_sim+bod">🇨🇳+🇹🇧 简体中文+藏文</option>
+                        <!-- 新增100种语言选项 -->
+                        <option value="afr">🇿🇦 南非荷兰语 (Afrikaans)</option>
+                        <option value="amh">🇪🇹 阿姆哈拉语 (Amharic)</option>
+                        <option value="asm">🇮🇳 阿萨姆语 (Assamese)</option>
+                        <option value="aze">🇦🇿 阿塞拜疆语 (Azerbaijani)</option>
+                        <option value="aze_cyrl">🇦🇿 阿塞拜疆语-西里尔文 (Azerbaijani - Cyrillic)</option>
+                        <option value="bel">🇧🇾 白俄罗斯语 (Belarusian)</option>
+                        <option value="ben">🇧🇩 孟加拉语 (Bengali)</option>
+                        <option value="bos">🇧🇦 波斯尼亚语 (Bosnian)</option>
+                        <option value="bul">🇧🇬 保加利亚语 (Bulgarian)</option>
+                        <option value="cat">🇪🇸 加泰罗尼亚语 (Catalan)</option>
+                        <option value="ceb">🇵🇭 宿务语 (Cebuano)</option>
+                        <option value="ces">🇨🇿 捷克语 (Czech)</option>
+                        <option value="chr">🇺🇸 切罗基语 (Cherokee)</option>
+                        <option value="cym">🇬🇧 威尔士语 (Welsh)</option>
+                        <option value="dan">🇩🇰 丹麦语 (Danish)</option>
+                        <option value="dzo">🇧🇹 宗喀语 (Dzongkha)</option>
+                        <option value="ell">🇬🇷 希腊语 (Greek)</option>
+                        <option value="enm">🇬🇧 中古英语 (Middle English)</option>
+                        <option value="epo"> Esperanto (世界语)</option>
+                        <option value="est">🇪🇪 爱沙尼亚语 (Estonian)</option>
+                        <option value="eus">🇪🇸 巴斯克语 (Basque)</option>
+                        <option value="fas">🇮🇷 波斯语 (Persian)</option>
+                        <option value="fin">🇫🇮 芬兰语 (Finnish)</option>
+                        <option value="frk">🇩🇪 德语哥特体 (German Fraktur)</option>
+                        <option value="frm">🇫🇷 中古法语 (Middle French)</option>
+                        <option value="gle">🇮🇪 爱尔兰语 (Irish)</option>
+                        <option value="glg">🇪🇸 加利西亚语 (Galician)</option>
+                        <option value="grc">🇬🇷 古希腊语 (Ancient Greek)</option>
+                        <option value="guj">🇮🇳 古吉拉特语 (Gujarati)</option>
+                        <option value="hat">🇭🇹 海地克里奥尔语 (Haitian Creole)</option>
+                        <option value="heb">🇮🇱 希伯来语 (Hebrew)</option>
+                        <option value="hrv">🇭🇷 克罗地亚语 (Croatian)</option>
+                        <option value="hun">🇭🇺 匈牙利语 (Hungarian)</option>
+                        <option value="iku">🇨🇦 伊努克提图特语 (Inuktitut)</option>
+                        <option value="ind">🇮🇩 印度尼西亚语 (Indonesian)</option>
+                        <option value="isl">🇮🇸 冰岛语 (Icelandic)</option>
+                        <option value="ita">🇮🇹 意大利语 (Italian)</option>
+                        <option value="ita_old">🇮🇹 古意大利语 (Old Italian)</option>
+                        <option value="jav">🇮🇩 爪哇语 (Javanese)</option>
+                        <option value="kan">🇮🇳 卡纳达语 (Kannada)</option>
+                        <option value="kat">🇬🇪 格鲁吉亚语 (Georgian)</option>
+                        <option value="kat_old">🇬🇪 古格鲁吉亚语 (Old Georgian)</option>
+                        <option value="kaz">🇰🇿 哈萨克语 (Kazakh)</option>
+                        <option value="khm">🇰🇭 高棉语 (Khmer)</option>
+                        <option value="kir">🇰🇬 吉尔吉斯语 (Kyrgyz)</option>
+                        <option value="kur">🇮🇶 库尔德语 (Kurdish)</option>
+                        <option value="lao">🇱🇦 老挝语 (Lao)</option>
+                        <option value="lat">🇻🇦 拉丁语 (Latin)</option>
+                        <option value="lav">🇱🇻 拉脱维亚语 (Latvian)</option>
+                        <option value="lit">🇱🇹 立陶宛语 (Lithuanian)</option>
+                        <option value="mal">🇮🇳 马拉雅拉姆语 (Malayalam)</option>
+                        <option value="mar">🇮🇳 马拉地语 (Marathi)</option>
+                        <option value="mkd">🇲🇰 马其顿语 (Macedonian)</option>
+                        <option value="mlt">🇲🇹 马耳他语 (Maltese)</option>
+                        <option value="msa">🇲🇾 马来语 (Malay)</option>
+                        <option value="mya">🇲🇲 缅甸语 (Burmese)</option>
+                        <option value="nep">🇳🇵 尼泊尔语 (Nepali)</option>
+                        <option value="nld">🇳🇱 荷兰语 (Dutch)</option>
+                        <option value="nor">🇳🇴 挪威语 (Norwegian)</option>
+                        <option value="ori">🇮🇳 奥里亚语 (Oriya)</option>
+                        <option value="pan">🇮🇳 旁遮普语 (Punjabi)</option>
+                        <option value="pol">🇵🇱 波兰语 (Polish)</option>
+                        <option value="por">🇵🇹 葡萄牙语 (Portuguese)</option>
+                        <option value="pus">🇦🇫 普什图语 (Pashto)</option>
+                        <option value="ron">🇷🇴 罗马尼亚语 (Romanian)</option>
+                        <option value="san">🇮🇳 梵语 (Sanskrit)</option>
+                        <option value="sin">🇱🇰 僧伽罗语 (Sinhala)</option>
+                        <option value="slk">🇸🇰 斯洛伐克语 (Slovak)</option>
+                        <option value="slv">🇸🇮 斯洛文尼亚语 (Slovenian)</option>
+                        <option value="spa_old">🇪🇸 古西班牙语 (Old Spanish)</option>
+                        <option value="sqi">🇦🇱 阿尔巴尼亚语 (Albanian)</option>
+                        <option value="srp">🇷🇸 塞尔维亚语 (Serbian)</option>
+                        <option value="srp_latn">🇷🇸 塞尔维亚语-拉丁文 (Serbian - Latin)</option>
+                        <option value="swa">🇰🇪 斯瓦希里语 (Swahili)</option>
+                        <option value="swe">🇸🇪 瑞典语 (Swedish)</option>
+                        <option value="syr">🇸🇾 叙利亚语 (Syriac)</option>
+                        <option value="tam">🇮🇳 泰米尔语 (Tamil)</option>
+                        <option value="tel">🇮🇳 泰卢固语 (Telugu)</option>
+                        <option value="tgk">🇹🇯 塔吉克语 (Tajik)</option>
+                        <option value="tgl">🇵🇭 他加禄语 (Tagalog)</option>
+                        <option value="tir">🇪🇹 提格利尼亚语 (Tigrinya)</option>
+                        <option value="tur">🇹🇷 土耳其语 (Turkish)</option>
+                        <option value="uig">🇨🇳 维吾尔语 (Uyghur)</option>
+                        <option value="ukr">🇺🇦 乌克兰语 (Ukrainian)</option>
+                        <option value="urd">🇵🇰 乌尔都语 (Urdu)</option>
+                        <option value="uzb">🇺🇿 乌兹别克语 (Uzbek)</option>
+                        <option value="uzb_cyrl">🇺🇿 乌兹别克语-西里尔文 (Uzbek - Cyrillic)</option>
+                        <option value="yid">🇮🇱 意第绪语 (Yiddish)</option>
+                        <!-- 多语言组合 -->
+                        <option value="eng+fra">🇬🇧+🇫🇷 英语+法语</option>
+                        <option value="eng+deu">🇬🇧+🇩🇪 英语+德语</option>
+                        <option value="eng+spa">🇬🇧+🇪🇸 英语+西班牙语</option>
+                        <option value="eng+jpn">🇬🇧+🇯🇵 英语+日语</option>
+                        <option value="eng+kor">🇬🇧+🇰🇷 英语+韩语</option>
+                        <option value="eng+rus">🇬🇧+🇷🇺 英语+俄语</option>
+                        <option value="eng+ara">🇬🇧+🇸🇦 英语+阿拉伯语</option>
+                        <option value="chi_sim+chi_tra">🇨🇳 简体中文+繁体中文</option>
+                        <option value="chi_sim+jpn">🇨🇳+🇯🇵 简体中文+日语</option>
+                        <option value="chi_sim+kor">🇨🇳+🇰🇷 简体中文+韩语</option>
+                        <option value="fra+deu">🇫🇷+🇩🇪 法语+德语</option>
+                        <option value="fra+spa">🇫🇷+🇪🇸 法语+西班牙语</option>
+                        <option value="deu+spa">🇩🇪+🇪🇸 德语+西班牙语</option>
+                        <option value="jpn+kor">🇯🇵+🇰🇷 日语+韩语</option>
+                        <option value="eng+chi_sim+jpn">🇬🇧+🇨🇳+🇯🇵 英语+简体中文+日语</option>
+                        <option value="eng+chi_sim+fra">🇬🇧+🇨🇳+🇫🇷 英语+简体中文+法语</option>
+                        <option value="eng+chi_sim+deu">🇬🇧+🇨🇳+🇩🇪 英语+简体中文+德语</option>
+                        <option value="eng+chi_sim+spa">🇬🇧+🇨🇳+🇪🇸 英语+简体中文+西班牙语</option>
+                        <option value="eng+chi_sim+rus">🇬🇧+🇨🇳+🇷🇺 英语+简体中文+俄语</option>
+                    </select>
+                    <p style="color: #666; font-size: 0.8rem; margin-top: 5px;">
+                        ℹ️ 提示：藏文等大文件首次下载需要较长时间，请耐心等待
+                    </p>
+                </div>
+                
+
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量定义
+        let worker = null;
+        let currentLanguage = 'bod';
+        let isPreloading = false;
+        
+        // 批量处理相关变量
+        let batchQueue = [];
+        let batchResults = [];
+        let isProcessingBatch = false;
+        let batchPaused = false;
+        let currentBatchIndex = 0;
+        
+        // 时间统计变量
+        let processingStartTime = 0;
+        let processingTotalTime = 0;
+        let batchStartTimes = {};
+        
+        // PDF.js 初始化
+        // 确保PDF.js库正确加载
+        function initializePdfJs() {
+            if (typeof pdfjsLib !== 'undefined') {
+                console.log('PDF.js 库已加载');
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            } else {
+                console.warn('PDF.js 库未加载，尝试重新加载...');
+                // 动态加载PDF.js库
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                script.onload = function() {
+                    console.log('PDF.js 库加载成功');
+                    if (typeof pdfjsLib !== 'undefined') {
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    }
+                };
+                script.onerror = function() {
+                    console.error('PDF.js 库加载失败');
+                    showNotification('PDF功能不可用', 'PDF.js库加载失败，无法处理PDF文件', 'error');
+                };
+                document.head.appendChild(script);
+            }
+        }
+        
+        // 背景色方案数组
+        const backgroundThemes = [
+            // 柔和日出
+            'linear-gradient(135deg, #FEF9E7 0%, #F1948A 25%, #5DADE2 50%, #AF7AC5 75%, #F4D03F 100%)',
+            // 温暖夏日
+            'linear-gradient(135deg, #FEF9E7 0%, #F39C12 25%, #82E0AA 50%, #5DADE2 75%, #AF7AC5 100%)',
+            // 春天花朵
+            'linear-gradient(135deg, #82E0AA 0%, #F1948A 25%, #F4D03F 50%, #AF7AC5 75%, #5DADE2 100%)',
+            // 秋日温暖
+            'linear-gradient(135deg, #F4D03F 0%, #F39C12 25%, #CD5C5C 50%, #A0522D 75%, #FEF9E7 100%)',
+            // 清新薷荷
+            'linear-gradient(135deg, #82E0AA 0%, #5DADE2 25%, #AF7AC5 50%, #F1948A 75%, #FEF9E7 100%)',
+            // 紫粉梦境
+            'linear-gradient(135deg, #AF7AC5 0%, #F1948A 25%, #F4D03F 50%, #82E0AA 75%, #5DADE2 100%)'
+        ];
+        
+        // 检测字体加载
+        function checkFontLoading() {
+            if ('fonts' in document) {
+                // 使用 Font Loading API
+                document.fonts.load('16px FangZheng-Zangyi').then(() => {
+                    console.log('藏文字体加载成功');
+                    showNotification('字体加载成功', '方正藏意汉体已成功加载', 'success', 2000);
+                }).catch(() => {
+                    console.warn('藏文字体加载失败，使用备用字体');
+                    showNotification('字体加载提示', '自定义字体加载中，将使用系统备用字体', 'info', 3000);
+                });
+            } else {
+                // 备用方案：简单延时检测
+                setTimeout(() => {
+                    console.log('字体加载检测完成');
+                }, 1000);
+            }
+        }
+        
+        // 设置随机背景色
+        function setRandomBackground() {
+            const randomIndex = Math.floor(Math.random() * backgroundThemes.length);
+            document.body.style.background = backgroundThemes[randomIndex];
+            console.log(`已切换到背景主题 ${randomIndex + 1}`);
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== 页面DOM加载完成 ===');
+            
+            // 检测字体加载
+            checkFontLoading();
+            
+            // 设置随机背景色
+            setRandomBackground();
+            
+            // 初始化PDF.js
+            initializePdfJs();
+            
+            // 检查Tesseract是否可用
+            if (typeof Tesseract === 'undefined') {
+                console.error('Tesseract.js未加载');
+                showError('Tesseract.js 加载失败，请检查网络连接并刷新页面');
+                return;
+            }
+            
+            console.log('=== Tesseract.js已加载 ===');
+            console.log('Tesseract 对象:', Tesseract);
+            
+            // 获取DOM元素
+            const fileInput = document.getElementById('fileInput');
+            const uploadSection = document.getElementById('uploadSection');
+            const languageSelect = document.getElementById('languageSelect');
+            
+            console.log('=== DOM元素检查 ===');
+            console.log('fileInput:', fileInput);
+            console.log('uploadSection:', uploadSection);
+            console.log('languageSelect:', languageSelect);
+
+            if (!fileInput) {
+                console.error('找不到文件输入元素');
+                showError('页面初始化失败：找不到文件输入元素');
+                return;
+            }
+            
+            if (!uploadSection) {
+                console.error('找不到上传区域元素');
+                showError('页面初始化失败：找不到上传区域元素');
+                return;
+            }
+            
+            if (!languageSelect) {
+                console.error('找不到语言选择器元素');
+                showError('页面初始化失败：找不到语言选择器元素');
+                return;
+            }
+
+            // 预加载藏文模型（提高用户体验）
+            preloadTibetan();
+
+            // 文件选择事件
+            console.log('=== 添加文件选择事件监听器 ===');
+            fileInput.addEventListener('change', handleFileSelect);
+            console.log('文件选择事件监听器已添加');
+            
+            // 测试点击事件
+            fileInput.addEventListener('click', function() {
+                console.log('文件输入框被点击');
+            });
+            
+            // 语言切换事件
+            languageSelect.addEventListener('change', function() {
+                const newLang = this.value;
+                console.log('语言切换到:', newLang);
+                if (newLang !== currentLanguage) {
+                    currentLanguage = newLang;
+                    
+                    if (worker && worker.currentLang !== currentLanguage) {
+                        const langName = getLanguageName(newLang);
+                        showNotification('语言已切换', `已切换到${langName}，识别时将重新加载语言包`, 'info');
+                        terminateWorker();
+                    }
+                }
+            });
+
+            // 设置拖拽上传
+            setupDragAndDrop();
+            
+            // 添加点击上传区域也能选择文件
+            uploadSection.addEventListener('click', function(e) {
+                console.log('上传区域被点击, 目标元素:', e.target.tagName);
+                if (e.target.tagName !== 'BUTTON') {
+                    console.log('触发文件选择...');
+                    fileInput.click();
+                }
+            });
+            
+            console.log('=== 初始化完成 ===');
+            
+            // 添加标签页点击事件
+            setupResultTabs();
+        });
+
+        // 设置拖拽上传
+        function setupDragAndDrop() {
+            const uploadSection = document.getElementById('uploadSection');
+            
+            uploadSection.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadSection.classList.add('dragover');
+            });
+
+            uploadSection.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadSection.classList.remove('dragover');
+            });
+
+            uploadSection.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadSection.classList.remove('dragover');
+                
+                const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                if (files.length > 0) {
+                    if (files.length === 1) {
+                        handleSingleFile(files[0]);
+                    } else {
+                        handleMultipleFiles(files);
+                    }
+                }
+            });
+        }
+
+        // 重置批量处理
+        function resetBatchProcessing() {
+            batchQueue = [];
+            batchResults = [];
+            currentBatchIndex = 0;
+            isProcessingBatch = false;
+            batchPaused = false;
+            
+            // 重置处理时间
+            processingStartTime = 0;
+            processingTotalTime = 0;
+            batchStartTimes = {};
+            
+            const timeDisplay = document.getElementById('processingTimeDisplay');
+            if (timeDisplay) {
+                timeDisplay.textContent = '0.00 秒';
+                timeDisplay.className = 'time-display';
+            }
+        }
+
+        // 初始化批量处理
+        function initBatchProcessing(files) {
+            // 重置批量处理状态
+            batchQueue = files.map((file, index) => ({
+                id: index,
+                file: file,
+                status: 'pending',
+                result: null,
+                error: null
+            }));
+            
+            batchResults = [];
+            currentBatchIndex = 0;
+            isProcessingBatch = true;
+            batchPaused = false;
+            
+            // 重置时间统计
+            processingStartTime = 0;
+            processingTotalTime = 0;
+            batchStartTimes = {};
+            
+            // 更新计数器
+            updateTabCounts();
+            updateBatchProgress();
+            
+            // 初始化图片网格
+            initImageGrid();
+            
+            // 隐藏欢迎信息
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
+            }
+        }
+
+        // 处理单个文件
+        function handleSingleFile(file) {
+            resetBatchProcessing();
+            initBatchProcessing([file]);
+            processNextFile();
+        }
+
+        // 处理多个文件
+        function handleMultipleFiles(files) {
+            resetBatchProcessing();
+            initBatchProcessing(files);
+            processNextFile();
+        }
+
+        // 处理下一个文件
+        function processNextFile() {
+            if (currentBatchIndex >= batchQueue.length) {
+                isProcessingBatch = false;
+                return;
+            }
+
+            const item = batchQueue[currentBatchIndex];
+            if (item.status === 'pending') {
+                item.status = 'processing';
+                item.startTime = performance.now();
+                processFile(item.file, (result, error) => {
+                    item.result = result;
+                    item.error = error;
+                    item.endTime = performance.now();
+                    item.status = 'completed';
+                    batchResults.push(item);
+                    updateBatchProgress();
+                    processNextFile();
+                });
+            } else {
+                currentBatchIndex++;
+                processNextFile();
+            }
+        }
+
+        // 更新批量处理进度
+        function updateBatchProgress() {
+            const progressElement = document.getElementById('batchProgress');
+            if (progressElement) {
+                const completedCount = batchResults.filter(item => item.status === 'completed').length;
+                progressElement.textContent = `${completedCount}/${batchQueue.length}`;
+            }
+        }
+
+        // 更新标签计数
+        function updateTabCounts() {
+            const pendingCount = batchQueue.filter(item => item.status === 'pending').length;
+            const processingCount = batchQueue.filter(item => item.status === 'processing').length;
+            const completedCount = batchResults.filter(item => item.status === 'completed').length;
+
+            const pendingTab = document.getElementById('pendingTab');
+            const processingTab = document.getElementById('processingTab');
+            const completedTab = document.getElementById('completedTab');
+
+            if (pendingTab) {
+                pendingTab.textContent = `待处理 (${pendingCount})`;
+            }
+            if (processingTab) {
+                processingTab.textContent = `处理中 (${processingCount})`;
+            }
+            if (completedTab) {
+                completedTab.textContent = `已完成 (${completedCount})`;
+            }
+        }
+
+        // 初始化图片网格
+        function initImageGrid() {
+            const imageGrid = document.getElementById('imageGrid');
+            if (imageGrid) {
+                imageGrid.innerHTML = '';
+                batchQueue.forEach(item => {
+                    const imageContainer = document.createElement('div');
+                    imageContainer.className = 'image-container';
+                    imageContainer.id = `image-${item.id}`;
+
+                    const image = document.createElement('img');
+                    image.src = URL.createObjectURL(item.file);
+                    image.alt = item.file.name;
+
+                    imageContainer.appendChild(image);
+                    imageGrid.appendChild(imageContainer);
+                });
+            }
+        }
+
+        // 处理文件
+        function processFile(file, callback) {
+            // 模拟文件处理
+            setTimeout(() => {
+                const result = `Processed ${file.name}`;
+                callback(result, null);
+            }, 1000);
+        }
+
+        // 初始化上传区域
+        function initUploadSection() {
+            const uploadSection = document.getElementById('uploadSection');
+            if (uploadSection) {
+                uploadSection.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadSection.classList.add('dragover');
+                });
+
+                uploadSection.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    uploadSection.classList.remove('dragover');
+                });
+
+                uploadSection.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadSection.classList.remove('dragover');
+                    
+                    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                    if (files.length > 0) {
+                        if (files.length === 1) {
+                            handleSingleFile(files[0]);
+                        } else {
+                            handleMultipleFiles(files);
+                        }
+                    }
+                });
+            }
+        }
+
+        // 重置批量处理
+        function resetBatchProcessing() {
+            batchQueue = [];
+            batchResults = [];
+            currentBatchIndex = 0;
+            isProcessingBatch = false;
+            batchPaused = false;
+            
+            // 重置处理时间
+            processingStartTime = 0;
+            processingTotalTime = 0;
+            batchStartTimes = {};
+            
+            const timeDisplay = document.getElementById('processingTimeDisplay');
+            if (timeDisplay) {
+                timeDisplay.textContent = '0.00 秒';
+                timeDisplay.className = 'time-display';
+            }
+        }
+
+        // 初始化批量处理
+        function initBatchProcessing(files) {
+            // 重置批量处理状态
+            batchQueue = files.map((file, index) => ({
+                id: index,
+                file: file,
+                status: 'pending',
+                result: null,
+                error: null
+            }));
+            
+            batchResults = [];
+            currentBatchIndex = 0;
+            isProcessingBatch = true;
+            batchPaused = false;
+            
+            // 重置时间统计
+            processingStartTime = 0;
+            processingTotalTime = 0;
+            batchStartTimes = {};
+            
+            // 更新计数器
+            updateTabCounts();
+            updateBatchProgress();
+            
+            // 初始化图片网格
+            initImageGrid();
+            
+            // 隐藏欢迎信息
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
+            }
+        }
+
+        // 处理单个文件
+        function handleSingleFile(file) {
+            resetBatchProcessing();
+            initBatchProcessing([file]);
+            processNextBatch();
+        }
+
+        // 处理多个文件
+        function handleMultipleFiles(files) {
+            resetBatchProcessing();
+            initBatchProcessing(files);
+            processNextBatch();
+        }
+
+        // 处理下一个批次
+        function processNextBatch() {
+            if (isProcessingBatch && !batchPaused) {
+                if (currentBatchIndex < batchQueue.length) {
+                    const item = batchQueue[currentBatchIndex];
+                    item.status = 'processing';
+                    item.startTime = performance.now();
+                    updateBatchProgress();
+                    processFile(item.file, (result, error) => {
+                        item.status = 'completed';
+                        item.result = result;
+                        item.error = error;
+                        item.endTime = performance.now();
+                        item.duration = item.endTime - item.startTime;
+                        batchResults.push(item);
+                        updateBatchProgress();
+                        currentBatchIndex++;
+                        processNextBatch();
+                    });
+                } else {
+                    isProcessingBatch = false;
+                    updateBatchProgress();
+                    updateProcessingTime();
+                }
+            }
+        }
+
+        // 更新批量处理进度
+        function updateBatchProgress() {
+            const progressElement = document.getElementById('batchProgress');
+            if (progressElement) {
+                const completedCount = batchQueue.filter(item => item.status === 'completed').length;
+                progressElement.textContent = `${completedCount} / ${batchQueue.length}`;
+            }
+        }
+
+        // 更新处理时间
+        function updateProcessingTime() {
+            const timeDisplay = document.getElementById('processingTimeDisplay');
+            if (timeDisplay) {
+                const totalTime = batchResults.reduce((sum, item) => sum + item.duration, 0);
+                timeDisplay.textContent = `${(totalTime / 1000).toFixed(2)} 秒`;
+                timeDisplay.className = 'time-display';
+            }
+        }
+
+        // 初始化图片网格
+        function initImageGrid() {
+            const imageGrid = document.getElementById('imageGrid');
+            if (imageGrid) {
+                imageGrid.innerHTML = '';
+            }
+        }
+
+        // 更新标签计数器
+        function updateTabCounts() {
+            const tabCounts = document.getElementById('tabCounts');
+            if (tabCounts) {
+                tabCounts.textContent = `处理文件: ${batchQueue.length}`;
+            }
+        }
+
+        // 处理文件
+        function processFile(file, callback) {
+            // 模拟文件处理
+            setTimeout(() => {
+                const result = `Processed ${file.name}`;
+                callback(result, null);
+            }, 1000);
+        }
+
+        // 暂停批量处理
+        function pauseBatchProcessing() {
+            batchPaused = true;
+        }
+
+        // 恢复批量处理
+        function resumeBatchProcessing() {
+            batchPaused = false;
+            processNextBatch();
+        }
+
+        // 取消批量处理
+        function cancelBatchProcessing() {
+            resetBatchProcessing();
+            updateBatchProgress();
+            updateProcessingTime();
+        }            
+        document.getElementById('resultsSection').style.display = 'flex';
+        
+        
+        // 初始化图片网格
+        function initImageGrid() {
+            const imageGrid = document.getElementById('imageGrid');
+            imageGrid.innerHTML = '';
+            
+            batchQueue.forEach((item, index) => {
+                const imageItem = document.createElement('div');
+                imageItem.className = 'image-item';
+                imageItem.id = `image-item-${index}`;
+                
+                // 读取图片预览
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imageItem.innerHTML = `
+                        <img src="${e.target.result}" alt="${item.file.name}">
+                        <div class="image-info">
+                            <div style="font-weight: 600; margin-bottom: 4px; color: var(--tibetan-brown);">${item.file.name}</div>
+                            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;">${formatFileSize(item.file.size)}</div>
+                        </div>
+                        <div class="image-status status-pending" id="status-${index}" style="
+                            padding: 4px 8px;
+                            border-radius: 12px;
+                            font-size: 0.75rem;
+                            font-weight: 500;
+                            text-align: center;
+                            background: var(--tibetan-cream);
+                            color: var(--tibetan-brown);
+                        ">待识别</div>
+                    `;
+                };
+                reader.readAsDataURL(item.file);
+                
+                imageGrid.appendChild(imageItem);
+            });
+        }
+        
+        // 开始批量处理
+        async function startBatchProcessing() {
+            if (!isProcessingBatch || batchPaused || currentBatchIndex >= batchQueue.length) {
+                return;
+            }
+            
+            const currentItem = batchQueue[currentBatchIndex];
+            if (!currentItem || currentItem.status !== 'pending') {
+                currentBatchIndex++;
+                setTimeout(startBatchProcessing, 100);
+                return;
+            }
+            
+            try {
+                console.log(`处理队列项 ${currentBatchIndex + 1}/${batchQueue.length}: ${currentItem.file.name}`);
+                updateImageStatus(currentItem.id, 'processing', '处理中...');
+                
+                // 开始计时
+                const startTime = performance.now();
+                batchStartTimes[currentItem.id] = startTime;
+                if (processingStartTime === 0) {
+                    processingStartTime = startTime;
+                }
+                
+                // 确保 Worker 已创建
+                if (!worker) {
+                    await createWorker();
+                }
+                
+                // 识别图像
+                const result = await worker.recognize(currentItem.file, getRecognitionOptions(), getOutputFormats());
+                
+                // 结束计时并计算耗时
+                const endTime = performance.now();
+                const processingTime = endTime - batchStartTimes[currentItem.id];
+                
+                // 处理识别结果
+                currentItem.status = 'completed';
+                currentItem.result = result;
+                
+                // 添加耗时信息到结果中
+                currentItem.processingTime = processingTime;
+                
+                // 更新界面和结果
+                updateImageStatus(currentItem.id, 'completed', '完成');
+                updateImageItem(currentItem.id, result.data.text);
+                
+                // 保存到批量结果
+                batchResults.push({
+                    id: currentItem.id,
+                    filename: currentItem.file.name,
+                    text: result.data.text,
+                    processingTime: processingTime
+                });
+                
+                // 更新进度
+                updateBatchProgress();
+                updateTabCounts();
+                
+                // 生成合并结果
+                generateCombinedResult();
+                
+                // 继续下一个
+                currentBatchIndex++;
+                
+                if (currentBatchIndex >= batchQueue.length) {
+                    // 计算总处理时间
+                    processingTotalTime = performance.now() - processingStartTime;
+                    
+                    // 更新总处理时间显示
+                    const timeDisplay = document.getElementById('processingTimeDisplay');
+                    if (timeDisplay && processingTotalTime > 0) {
+                        const seconds = (processingTotalTime / 1000).toFixed(2);
+                        timeDisplay.textContent = `${seconds} 秒`;
+                        
+                        // 更新处理时间状态类
+                        if (processingTotalTime < 5000) {
+                            timeDisplay.className = 'time-display fast';
+                        } else if (processingTotalTime < 15000) {
+                            timeDisplay.className = 'time-display medium';
+                        } else {
+                            timeDisplay.className = 'time-display slow';
+                        }
+                    }
+                    
+                    // 处理完成
+                    completeBatchProcessing();
+                } else {
+                    // 继续下一个处理
+                    setTimeout(startBatchProcessing, 100);
+                }
+                
+            } catch (error) {
+                console.error(`处理 ${currentItem.file.name} 失败:`, error);
+                
+                // 记录错误
+                currentItem.error = error.message;
+                
+                // 尝试重试，最多重试一次
+                if (!currentItem.retried) {
+                    console.log(`正在尝试重新处理 ${currentItem.file.name}...`);
+                    currentItem.retried = true;
+                    
+                    // 显示重试通知
+                    showNotification('正在重试', `正在重新处理文件: ${currentItem.file.name}`, 'info', 2000);
+                    
+                    // 重置 worker
+                    if (worker) {
+                        await worker.terminate();
+                        worker = null;
+                    }
+                    
+                    // 等待短暂停后重试
+                    setTimeout(startBatchProcessing, 1000);
+                    return;
+                }
+                
+                // 如果已经重试过仍然失败，更新界面
+                currentItem.status = 'error';
+                updateImageStatus(currentItem.id, 'error', '识别失败');
+                updateBatchProgress();
+                
+                // 继续下一个
+                currentBatchIndex++;
+                setTimeout(startBatchProcessing, 100);
+            }
+        }
+        
+        // 处理单个文件（用于批量处理）
+        async function processSingleFile(file, index) {
+            console.log(`开始处理文件 ${index + 1}:`, file.name);
+            
+            // 检查Tesseract是否可用
+            if (typeof Tesseract === 'undefined') {
+                throw new Error('Tesseract.js 未加载完成');
+            }
+            
+            // 创建或重用 Worker
+            if (!worker || worker.currentLang !== currentLanguage) {
+                await createWorker();
+            }
+            
+            // 获取识别选项
+            const options = getRecognitionOptions();
+            const outputFormats = getOutputFormats();
+            
+            // 执行识别
+            const result = await worker.recognize(file, options, outputFormats);
+            
+            return result;
+        }
+        async function handleFileSelect(event) {
+            console.log('=== 文件选择事件触发 ===');
+            console.log('Event:', event);
+            console.log('Event target:', event.target);
+            console.log('Files:', event.target.files);
+            
+            const files = Array.from(event.target.files);
+            if (files.length === 0) {
+                console.log('未选择文件或文件为空');
+                return;
+            }
+            
+            console.log(`=== 选择了 ${files.length} 个文件 ===`);
+            
+            // 验证所有文件
+            const validFiles = [];
+            const pdfFiles = [];
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                console.log(`文件 ${i + 1}: ${file.name}, ${file.type}, ${file.size} bytes`);
+                
+                // 检查是否为 PDF 文件
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    if (file.size > 50 * 1024 * 1024) { // 50MB 限制
+                        console.error(`PDF 文件过大: ${file.name} (${file.size} bytes)`);
+                        showNotification('文件过大', `${file.name} 超过50MB，已跳过`, 'warning');
+                        continue;
+                    }
+                    pdfFiles.push(file);
+                    continue;
+                }
+                
+                // 验证图片文件类型
+                if (!file.type.startsWith('image/')) {
+                    console.error(`文件类型错误: ${file.name} (${file.type})`);
+                    showNotification('文件类型错误', `${file.name} 不是支持的文件类型，已跳过`, 'warning');
+                    continue;
+                }
+                
+                // 验证图片文件大小 (10MB)
+                if (file.size > 10 * 1024 * 1024) {
+                    console.error(`图片文件过大: ${file.name} (${file.size} bytes)`);
+                    showNotification('文件过大', `${file.name} 超过10MB，已跳过`, 'warning');
+                    continue;
+                }
+                
+                validFiles.push(file);
+            }
+            
+            // 处理 PDF 文件
+            if (pdfFiles.length > 0) {
+                try {
+                    showNotification('PDF 转换', `正在转换 ${pdfFiles.length} 个 PDF 文件...`, 'info', 0);
+                    const notificationElement = document.querySelector('.notification.info');
+                    
+                    for (const pdfFile of pdfFiles) {
+                        console.log('处理 PDF 文件:', pdfFile.name);
+                        try {
+                            const convertedImages = await convertPdfToImages(pdfFile);
+                            validFiles.push(...convertedImages);
+                            
+                            // 关闭之前的通知
+                            if (notificationElement) {
+                                closeNotification(notificationElement.querySelector('.notification-close'));
+                            }
+                            
+                            showNotification('PDF 转换成功', 
+                                `${pdfFile.name} 已转换为 ${convertedImages.length} 张图片`, 'success', 3000);
+                                
+                            // 确保隐藏进度条
+                            hideProgress();
+                        } catch (pdfError) {
+                            console.error('PDF 转换失败:', pdfError);
+                            
+                            // 关闭之前的通知
+                            if (notificationElement) {
+                                closeNotification(notificationElement.querySelector('.notification-close'));
+                            }
+                            
+                            showNotification('PDF 转换失败', 
+                                `${pdfFile.name}: ${pdfError.message}`, 'error', 5000);
+                            
+                            // 确保隐藏进度条
+                            hideProgress();
+                            
+                            // 如果没有其他有效文件且这是最后一个PDF文件，直接返回
+                            if (validFiles.length === 0 && pdfFiles.indexOf(pdfFile) === pdfFiles.length - 1) {
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // 确保关闭之前的通知
+                    const allNotifications = document.querySelectorAll('.notification');
+                    allNotifications.forEach(notification => {
+                        if (notification.textContent.includes('PDF 转换') || notification.textContent.includes('正在转换')) {
+                            closeNotification(notification.querySelector('.notification-close'));
+                        }
+                    });
+                    
+                } catch (error) {
+                    console.error('PDF 处理失败:', error);
+                    showNotification('PDF 处理失败', error.message, 'error');
+                    hideProgress();
+                    
+                    if (validFiles.length === 0) {
+                        return; // 如果没有其他有效文件，直接返回
+                    }
+                }
+            }
+            
+            if (validFiles.length === 0) {
+                showNotification('没有有效文件', '请选择有效的图片或 PDF 文件', 'error');
+                hideProgress();
+                return;
+            }
+            
+            console.log(`有效文件数量: ${validFiles.length}`);
+            
+            // 确保隐藏进度条
+            hideProgress();
+            
+            // 统一使用批量处理模式（支持单张或多张）
+            handleFiles(validFiles);
+        }
+
+        // 统一处理文件（支持单张或多张）
+        function handleFiles(files) {
+            console.log(`文件处理模式: ${files.length} 个文件`);
+            
+            // 隐藏欢迎消息，显示结果区域
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
+            }
+            document.getElementById('resultsSection').style.display = 'flex';
+            
+            // 显示标签页
+            document.getElementById('resultTabs').style.display = 'flex';
+            
+            // 如果是多个文件，显示批量信息面板
+            if (files.length > 1) {
+                document.getElementById('batchInfo').classList.add('show');
+            } else {
+                document.getElementById('batchInfo').classList.remove('show');
+            }
+            
+            // 初始化批量处理
+            initBatchProcessing(files);
+            
+            // 显示批量结果面板
+            showResultPanel('batch');
+            
+            // 开始批量处理
+            startBatchProcessing();
+        }
+
+        // 创建 Worker
+        async function createWorker() {
+            console.log(`开始创建Worker，语言: ${currentLanguage}`);
+            showProgress('正在初始化识别引擎...', 0);
+            
+            if (worker) {
+                console.log('终止现有Worker');
+                await worker.terminate();
+            }
+
+            // 设置更长的超时时间，并添加重试机制
+            const timeout = new Promise((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error(`语言包 ${currentLanguage} 加载超时。请检查网络连接或选择其他语言（推荐：英语 eng）`));
+                }, 120000); // 增加到2分钟
+            });
+
+            let retryCount = 0;
+            const maxRetries = 2;
+            
+            const createWorkerWithRetry = async () => {
+                try {
+                    console.log(`尝试创建Worker (${retryCount + 1}/${maxRetries + 1})`);
+                    
+                    const workerPromise = Tesseract.createWorker(currentLanguage, 1, {
+                        workerPath: '/dist/worker.min.js',
+                        gzip: true,  // 启用gzip压缩以减少下载大小
+                        cacheMethod: 'write',  // 启用缓存以提高重复使用速度
+                        // langPath 留空使用默认CDN: https://cdn.jsdelivr.net/npm/@tesseract.js-data/
+                        logger: function(m) {
+                            console.log('Worker日志:', m);
+                            if (m.status && m.progress !== undefined) {
+                                const percentage = Math.round(m.progress * 100);
+                                
+                                // 更详细的状态信息
+                                let statusText = m.status;
+                                let title = '正在处理...';
+                                
+                                if (m.status.includes('downloading')) {
+                                    statusText = `正在下载 ${currentLanguage} 语言包...`;
+                                    title = '下载语言包';
+                                } else if (m.status.includes('loading')) {
+                                    statusText = `正在加载 ${currentLanguage} 语言包...`;
+                                    title = '加载语言包';
+                                } else if (m.status.includes('initializing')) {
+                                    statusText = '正在初始化识别引擎...';
+                                    title = '初始化引擎';
+                                } else if (m.status.includes('recognizing')) {
+                                    statusText = '正在识别文字内容...';
+                                    title = '识别文字';
+                                }
+                                
+                                showProgress(statusText, percentage, title);
+                            }
+                        }
+                    });
+
+                    return await Promise.race([workerPromise, timeout]);
+                    
+                } catch (error) {
+                    console.error(`Worker创建失败 (尝试 ${retryCount + 1}):`, error);
+                    
+                    if (retryCount < maxRetries) {
+                        retryCount++;
+                        showProgress(`创建失败，正在重试 (${retryCount}/${maxRetries})...`, 0);
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒后重试
+                        return createWorkerWithRetry();
+                    } else {
+                        // 如果不是英语，建议切换到英语
+                        if (currentLanguage !== 'eng') {
+                            throw new Error(`${currentLanguage} 语言包加载失败。建议切换到英语 (English) 进行测试，英语包较小且稳定。`);
+                        } else {
+                            throw error;
+                        }
+                    }
+                }
+            };
+
+            try {
+                worker = await createWorkerWithRetry();
+                worker.currentLang = currentLanguage;
+                console.log(`Worker创建成功，语言: ${currentLanguage}`);
+                showProgress('识别引擎准备就绪', 100);
+                
+            } catch (error) {
+                console.error('Worker创建最终失败:', error);
+                throw error;
+            }
+        }
+
+        // 获取识别选项
+        function getRecognitionOptions() {
+            return {
+                rotateAuto: false  // 默认禁用自动旋转以提高速度
+            };
+        }
+        
+        // 获取输出格式
+        function getOutputFormats() {
+            return {
+                text: true,  // 只输出文本格式
+                blocks: false,
+                hocr: false,
+                imageGrey: false,
+                imageBinary: false
+            };
+        }
+
+        // 显示结果
+        function displayResults(data) {
+            console.log('显示识别结果:', data);
+            
+            // 确保结果区域可见
+            const resultsSection = document.getElementById('resultsSection');
+            if (resultsSection) {
+                resultsSection.style.display = 'flex';
+            }
+            
+            // 确保单张结果面板激活
+            showResultPanel('single');
+            
+            // 显示文本结果
+            const textResult = document.getElementById('textResult');
+            if (textResult) {
+                textResult.textContent = data.text || '未识别到文字';
+                console.log('文本结果已更新');
+            }
+
+            // 显示处理后的图像
+            const processedImages = document.getElementById('processedImages');
+            if (processedImages) {
+                processedImages.innerHTML = '';
+
+                if (data.imageGrey) {
+                    const greyDiv = document.createElement('div');
+                    greyDiv.innerHTML = `
+                        <h4 style="margin: 15px 0 10px 0; color: #475569; font-size: 0.95rem;">灰度图</h4>
+                        <img src="${data.imageGrey}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    `;
+                    processedImages.appendChild(greyDiv);
+                }
+
+                if (data.imageBinary) {
+                    const binaryDiv = document.createElement('div');
+                    binaryDiv.innerHTML = `
+                        <h4 style="margin: 15px 0 10px 0; color: #475569; font-size: 0.95rem;">二值化图</h4>
+                        <img src="${data.imageBinary}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    `;
+                    processedImages.appendChild(binaryDiv);
+                }
+            }
+
+            // 显示其他格式输出
+            const additionalOutput = document.getElementById('additionalOutput');
+            if (additionalOutput) {
+                additionalOutput.innerHTML = '';
+
+                if (data.blocks) {
+                    const blocksDiv = document.createElement('div');
+                    blocksDiv.style.cssText = 'background: white; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.04);';
+                    const blocksContent = document.createElement('pre');
+                    blocksContent.className = 'custom-scrollbar';
+                    blocksContent.style.cssText = 'background: #f8fafc; padding: 16px; border-radius: 8px; overflow: auto; max-height: 300px; font-size: 0.85rem; line-height: 1.4; border: 1px solid #e2e8f0;';
+                    blocksContent.textContent = JSON.stringify(data.blocks, null, 2);
+                    blocksDiv.innerHTML = `<h4 style="margin-bottom: 16px; color: #1e293b; font-size: 1.1rem; font-weight: 600;">📊 块级数据</h4>`;
+                    blocksDiv.appendChild(blocksContent);
+                    additionalOutput.appendChild(blocksDiv);
+                }
+
+                if (data.hocr) {
+                    const hocrDiv = document.createElement('div');
+                    hocrDiv.style.cssText = 'background: white; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.04); margin-top: 16px;';
+                    const hocrContent = document.createElement('pre');
+                    hocrContent.className = 'custom-scrollbar';
+                    hocrContent.style.cssText = 'background: #f8fafc; padding: 16px; border-radius: 8px; overflow: auto; max-height: 300px; font-size: 0.85rem; line-height: 1.4; border: 1px solid #e2e8f0;';
+                    hocrContent.textContent = data.hocr;
+                    hocrDiv.innerHTML = `<h4 style="margin-bottom: 16px; color: #1e293b; font-size: 1.1rem; font-weight: 600;">📋 hOCR 格式</h4>`;
+                    hocrDiv.appendChild(hocrContent);
+                    additionalOutput.appendChild(hocrDiv);
+                }
+            }
+            
+            console.log('识别结果显示完成');
+        }
+
+        // 显示进度
+        function showProgress(message, percentage = null, title = '正在处理...') {
+            console.log(`显示进度: ${title} - ${message} - ${percentage}%`);
+            
+            const progressSection = document.getElementById('progressSection');
+            const progressTitle = document.getElementById('progressTitle');
+            const progressSubtitle = document.getElementById('progressSubtitle');
+            const progressStatus = document.getElementById('progressStatus');
+            const progressBarFill = document.getElementById('progressFill'); // 修正ID
+            const progressPercentage = document.getElementById('progressPercentage');
+            const progressActions = document.getElementById('progressActions');
+            const progressIcon = document.getElementById('progressIcon');
+            const switchBtn = document.getElementById('switchBtn');
+
+            if (!progressSection) {
+                console.error('找不到进度条元素 progressSection');
+                return;
+            }
+
+            progressSection.style.display = 'flex';
+            if (progressTitle) progressTitle.textContent = title;
+            if (progressSubtitle) progressSubtitle.textContent = '请稍候，我们正在为您处理...';
+            if (progressStatus) progressStatus.textContent = message;
+            
+            // 更新进度条
+            if (percentage !== null && progressBarFill && progressPercentage) {
+                progressBarFill.style.width = percentage + '%';
+                progressPercentage.textContent = percentage + '%';
+            } else if (progressBarFill && progressPercentage) {
+                progressBarFill.style.width = '0%';
+                progressPercentage.textContent = '0%';
+            }
+            
+            // 根据不同阶段显示不同图标
+            if (progressIcon) {
+                if (message.includes('语言包') || message.includes('下载')) {
+                    progressIcon.textContent = '📦'; // 下载图标
+                    if (progressTitle) progressTitle.textContent = '下载语言包';
+                    // 如果进度卡住，显示取消和切换按钮
+                    if (percentage !== null && percentage < 10) {
+                        clearTimeout(window.progressUpdateTimer);
+                        window.progressUpdateTimer = setTimeout(() => {
+                            if (progressBarFill && (progressBarFill.style.width === '0%' || parseInt(progressBarFill.style.width) < 10)) {
+                                if (progressActions) progressActions.style.display = 'flex';
+                                if (currentLanguage !== 'eng' && switchBtn) {
+                                    switchBtn.style.display = 'block';
+                                }
+                            }
+                        }, 15000); // 15秒后显示操作按钮
+                    }
+                } else if (message.includes('初始化') || message.includes('加载')) {
+                    progressIcon.textContent = '⚙️'; // 设置图标
+                    if (progressTitle) progressTitle.textContent = '初始化引擎';
+                } else if (message.includes('识别')) {
+                    progressIcon.textContent = '🔍'; // 搜索图标
+                    if (progressTitle) progressTitle.textContent = '识别文字';
+                    if (progressActions) progressActions.style.display = 'none'; // 识别阶段隐藏按钮
+                } else if (message.includes('PDF') || message.includes('转换')) {
+                    progressIcon.textContent = '📄'; // PDF图标
+                    if (progressTitle) progressTitle.textContent = 'PDF 转换';
+                } else {
+                    progressIcon.textContent = '🔄'; // 默认图标
+                }
+            }
+        }
+        
+        // 隐藏进度
+        function hideProgress() {
+            console.log('隐藏进度条');
+            
+            const progressSection = document.getElementById('progressSection');
+            if (!progressSection) {
+                console.error('找不到进度条元素 progressSection');
+                return;
+            }
+            
+            // 设置进度条为100%并显示完成状态，然后延迟隐藏
+            const progressBarFill = document.getElementById('progressFill'); // 修正ID
+            const progressPercentage = document.getElementById('progressPercentage');
+            const progressTitle = document.getElementById('progressTitle');
+            const progressStatus = document.getElementById('progressStatus');
+            const progressActions = document.getElementById('progressActions');
+            const switchBtn = document.getElementById('switchBtn');
+            
+            if (progressBarFill) progressBarFill.style.width = '100%';
+            if (progressPercentage) progressPercentage.textContent = '100%';
+            if (progressTitle) progressTitle.textContent = '处理完成';
+            if (progressStatus) progressStatus.textContent = '所有任务已成功完成';
+            
+            // 确保解除任何可能的进度更新计时器
+            clearTimeout(window.progressUpdateTimer);
+            
+            // 延迟隐藏进度框，让用户看到完成状态
+            setTimeout(() => {
+                progressSection.style.display = 'none';
+                if (progressActions) progressActions.style.display = 'none';
+                if (switchBtn) switchBtn.style.display = 'none';
+                
+                // 确保重置进度条状态，为下次使用做准备
+                if (progressBarFill) progressBarFill.style.width = '0%';
+                if (progressPercentage) progressPercentage.textContent = '0%';
+                if (progressStatus) progressStatus.textContent = '';
+                
+                console.log('进度条已隐藏');
+            }, 1000);
+        }
+        
+        // 快速切换到英语
+        function switchToEnglish() {
+            console.log('用户请求切换到英语');
+            
+            // 取消当前加载
+            if (worker) {
+                worker.terminate();
+                worker = null;
+            }
+            
+            // 切换语言
+            currentLanguage = 'eng';
+            document.getElementById('languageSelect').value = 'eng';
+            
+            // 显示提示信息
+            showNotification('语言已切换', '已切换到英语，请重新选择图片进行识别', 'success');
+            hideProgress();
+        }
+        
+        // 取消加载
+        function cancelLoading() {
+            console.log('用户取消加载');
+            if (worker) {
+                worker.terminate();
+                worker = null;
+            }
+            hideProgress();
+            showNotification('加载已取消', '您可以重新选择图片或切换语言', 'info');
+        }
+
+        // 显示成功消息
+        function showSuccess(message) {
+            showMessage(message, 'success');
+        }
+        
+        // 显示错误消息
+        function showError(message) {
+            console.error('错误:', message);
+            showMessage(message, 'error');
+        }
+
+        // 获取语言名称
+        function getLanguageName(langCode) {
+            const langMap = {
+                'bod': '藏文',
+                'eng': '英语',
+                'chi_sim': '简体中文',
+                'chi_tra': '繁体中文',
+                'jpn': '日语',
+                'kor': '韩语',
+                'ara': '阿拉伯语',
+                'hin': '印地语',
+                'rus': '俄语',
+                'fra': '法语',
+                'deu': '德语',
+                'spa': '西班牙语',
+                'tha': '泰语',
+                'vie': '越南语',
+                'eng+chi_sim': '英语+简体中文',
+                'eng+bod': '英语+藏文',
+                'chi_sim+bod': '简体中文+藏文'
+            };
+            return langMap[langCode] || langCode;
+        }
+        
+        // 显示顶部通知
+        function showNotification(title, message = '', type = 'info', duration = 4000) {
+            const container = document.getElementById('notificationContainer');
+            if (!container) return;
+            
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            // 设置图标
+            let icon = 'ℹ️'; // 默认信息图标
+            switch (type) {
+                case 'success':
+                    icon = '✅'; // 成功
+                    break;
+                case 'error':
+                    icon = '❌'; // 错误
+                    break;
+                case 'warning':
+                    icon = '⚠️'; // 警告
+                    break;
+                case 'info':
+                default:
+                    icon = 'ℹ️'; // 信息
+                    break;
+            }
+            
+            notification.innerHTML = `
+                <div class="notification-icon">${icon}</div>
+                <div class="notification-content">
+                    <div class="notification-title">${title}</div>
+                    ${message ? `<div class="notification-message">${message}</div>` : ''}
+                </div>
+                <button class="notification-close" onclick="closeNotification(this)">×</button>
+            `;
+            
+            // 添加到容器
+            container.appendChild(notification);
+            
+            // 自动关闭
+            if (duration > 0) {
+                setTimeout(() => {
+                    closeNotification(notification.querySelector('.notification-close'));
+                }, duration);
+            }
+            
+            return notification;
+        }
+        
+        // 关闭通知
+        function closeNotification(closeBtn) {
+            // 如果传入的是null或undefined，不执行任何操作
+            if (!closeBtn) {
+                console.warn('尝试关闭通知时提供了无效的按钮');
+                return;
+            }
+            
+            // 兼容直接传入通知元素的情况
+            let notification;
+            if (closeBtn.classList && closeBtn.classList.contains('notification')) {
+                notification = closeBtn;
+                closeBtn = notification.querySelector('.notification-close');
+                if (!closeBtn) {
+                    console.warn('通知元素中找不到关闭按钮');
+                    // 仍然尝试移除通知元素
+                    if (notification.parentNode) {
+                        notification.classList.add('slide-out');
+                        setTimeout(() => {
+                            try {
+                                notification.parentNode.removeChild(notification);
+                            } catch (e) {
+                                console.error('移除通知元素失败:', e);
+                            }
+                        }, 300);
+                    }
+                    return;
+                }
+            } else {
+                notification = closeBtn.closest('.notification');
+                if (!notification) {
+                    console.warn('找不到与关闭按钮关联的通知元素');
+                    return;
+                }
+            }
+            
+            // 添加动画并移除元素
+            try {
+                notification.classList.add('slide-out');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        try {
+                            notification.parentNode.removeChild(notification);
+                        } catch (e) {
+                            console.error('移除通知元素失败:', e);
+                        }
+                    }
+                }, 300);
+            } catch (error) {
+                console.error('关闭通知失败:', error);
+                // 尝试直接移除
+                if (notification && notification.parentNode) {
+                    try {
+                        notification.parentNode.removeChild(notification);
+                    } catch (e) {
+                        console.error('直接移除通知元素失败:', e);
+                    }
+                }
+            }
+        }
+        
+        // 为了兼容性，保留原有的showMessage函数但改为调用顶部通知
+        function showMessage(message, type = 'info') {
+            let title = '提示';
+            switch (type) {
+                case 'success':
+                    title = '成功';
+                    break;
+                case 'error':
+                    title = '错误';
+                    break;
+                case 'info':
+                default:
+                    title = '信息';
+                    break;
+            }
+            showNotification(title, message, type);
+        }
+
+        // 终止 Worker
+        async function terminateWorker() {
+            if (worker) {
+                await worker.terminate();
+                worker = null;
+            }
+        }
+
+
+
+        // 预加载藏文模型
+        async function preloadTibetan() {
+            if (isPreloading) return;
+            isPreloading = true;
+            
+            try {
+                console.log('开始预加载藏文模型...');
+                
+                // 检查Tesseract是否可用
+                if (typeof Tesseract === 'undefined') {
+                    console.log('Tesseract尚未加载，跳过预加载');
+                    return;
+                }
+                
+                const tibetanWorker = await Tesseract.createWorker('bod', 1, {
+                    workerPath: '/dist/worker.min.js',
+                    gzip: true,
+                    cacheMethod: 'write',
+                    // 使用默认的 CDN langPath
+                    logger: (m) => console.log('预加载藏文:', m)
+                });
+                
+                // 直接使用预加载的worker
+                worker = tibetanWorker;
+                worker.currentLang = 'bod';
+                console.log('藏文模型预加载完成并已激活');
+                showNotification('藏文识别引擎已准备就绪', '可以开始上传图片进行识别', 'success');
+                
+            } catch (error) {
+                console.log('藏文模型预加载失败，将在需要时加载:', error.message);
+            } finally {
+                isPreloading = false;
+            }
+        }
+
+        // 复制结果到剪贴板
+        async function copyResult() {
+            const resultElement = document.getElementById('combinedResult');
+            const text = resultElement.textContent || resultElement.innerText;
+            
+            if (!text || text === '合并结果将在这里显示...') {
+                showNotification('无法复制', '没有可复制的识别结果', 'warning');
+                return;
+            }
+            
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    // 使用现代 Clipboard API
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    // 备用方案：传统方法
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    document.execCommand('copy');
+                    textArea.remove();
+                }
+                
+                showNotification('复制成功', '识别结果已复制到剪贴板', 'success');
+                console.log('结果已复制到剪贴板');
+                
+            } catch (error) {
+                console.error('复制失败:', error);
+                showNotification('复制失败', '无法复制到剪贴板，请手动选中复制', 'error');
+            }
+        }
+        
+        // 保存结果为TXT文件
+        function saveResult() {
+            const resultElement = document.getElementById('combinedResult');
+            const text = resultElement.textContent || resultElement.innerText;
+            
+            if (!text || text === '合并结果将在这里显示...') {
+                showNotification('无法保存', '没有可保存的识别结果', 'warning');
+                return;
+            }
+            
+            try {
+                // 创建文件名（包含时间戳）
+                const now = new Date();
+                const timestamp = now.toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_');
+                const filename = `OCR_识别结果_${timestamp}.txt`;
+                
+                // 创建 Blob 对象
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                
+                // 触发下载
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 清理 URL 对象
+                window.URL.revokeObjectURL(url);
+                
+                showNotification('保存成功', `识别结果已保存为 ${filename}`, 'success');
+                console.log('结果已保存为文件:', filename);
+                
+            } catch (error) {
+                console.error('保存失败:', error);
+                showNotification('保存失败', '无法保存文件，请检查浏览器设置', 'error');
+            }
+        }
+        
+        // PDF 转图片功能
+        async function convertPdfToImages(file) {
+            console.log('开始转换 PDF 文件:', file.name);
+            
+            // 检查PDF.js是否已加载
+            if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
+                throw new Error('PDF.js 库未正确加载，无法处理 PDF 文件。请刷新页面重试。');
+            }
+            
+            try {
+                // 设置PDF.js worker路径
+                if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
+                
+                // 读取 PDF 文件
+                showProgress('正在读取 PDF 文件...', 5, 'PDF 转换');
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // 加载 PDF 文档
+                showProgress('正在加载 PDF 文档...', 10, 'PDF 转换');
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                
+                // 添加加载进度监听
+                loadingTask.onProgress = function(progressData) {
+                    if (progressData.total > 0) {
+                        const percentage = Math.round((progressData.loaded / progressData.total) * 30) + 10;
+                        showProgress(`正在加载 PDF 文档... (${Math.round(progressData.loaded/1024)}KB/${Math.round(progressData.total/1024)}KB)`, 
+                                   percentage, 'PDF 转换');
+                    }
+                };
+                
+                const pdf = await loadingTask.promise;
+                
+                const images = [];
+                const totalPages = pdf.numPages;
+                
+                console.log(`PDF 共有 ${totalPages} 页`);
+                
+                if (totalPages === 0) {
+                    throw new Error('PDF 文件没有页面内容');
+                }
+                
+                // 转换每一页为图片
+                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    try {
+                        showProgress(`正在转换 PDF 第 ${pageNum}/${totalPages} 页...`, 
+                                   30 + (pageNum - 1) / totalPages * 60, // PDF转换占30%-90%进度
+                                   'PDF 转换');
+                        
+                        const page = await pdf.getPage(pageNum);
+                        
+                        // 设置适中的分辨率（避免内存问题）
+                        const scale = 1.5; // 降低分辨率以减少内存使用
+                        const viewport = page.getViewport({ scale });
+                        
+                        // 检查页面尺寸是否合理
+                        if (viewport.width > 5000 || viewport.height > 5000) {
+                            console.warn(`PDF 第 ${pageNum} 页尺寸过大，可能影响性能`);
+                        }
+                        
+                        // 创建 canvas
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        
+                        // 渲染 PDF 页面到 canvas
+                        const renderContext = {
+                            canvasContext: context,
+                            viewport: viewport
+                        };
+                        
+                        // 添加渲染进度监听
+                        const renderTask = page.render(renderContext);
+                        await renderTask.promise;
+                        
+                        // 将 canvas 转换为 Blob
+                        showProgress(`正在处理第 ${pageNum}/${totalPages} 页图像...`, 
+                                   90 + (pageNum - 1) / totalPages * 5, // 图像处理占90%-95%进度
+                                   'PDF 转换');
+                        
+                        const blob = await new Promise((resolve, reject) => {
+                            canvas.toBlob((blob) => {
+                                if (blob) {
+                                    resolve(blob);
+                                } else {
+                                    reject(new Error('图像转换失败'));
+                                }
+                            }, 'image/png', 0.8); // 降低质量以减少内存使用
+                        });
+                        
+                        // 创建虚拟文件对象
+                        const imageFile = new File([blob], `${file.name}_第${pageNum}页.png`, {
+                            type: 'image/png',
+                            lastModified: Date.now()
+                        });
+                        
+                        images.push(imageFile);
+                        
+                        console.log(`PDF 第 ${pageNum} 页转换完成`);
+                    } catch (pageError) {
+                        console.error(`PDF 第 ${pageNum} 页转换失败:`, pageError);
+                        // 继续处理其他页面而不是中断整个过程
+                        showNotification('PDF 页面转换失败', `第 ${pageNum} 页转换失败，跳过该页继续处理`, 'warning');
+                    }
+                }
+                
+                if (images.length === 0) {
+                    throw new Error('未能从PDF中提取任何页面');
+                }
+                
+                showProgress('PDF 转换完成', 100, 'PDF 转换');
+                console.log(`PDF 转换完成，共生成 ${images.length} 张图片`);
+                
+                // 添加延迟，确保进度显示完成
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // 手动关闭进度条
+                hideProgress();
+                
+                // 关闭所有PDF转换相关通知
+                const allNotifications = document.querySelectorAll('.notification');
+                allNotifications.forEach(notification => {
+                    if (notification.textContent.includes('PDF') || notification.textContent.includes('转换')) {
+                        const closeBtn = notification.querySelector('.notification-close');
+                        if (closeBtn) {
+                            closeNotification(closeBtn);
+                        }
+                    }
+                });
+                
+                return images;
+                
+            } catch (error) {
+                console.error('PDF 转换失败:', error);
+                
+                // 提供更详细的错误信息
+                let errorMessage = 'PDF 转换失败';
+                if (error.name === 'PasswordException') {
+                    errorMessage = 'PDF 文件已加密，需要密码才能打开';
+                } else if (error.name === 'InvalidPDFException') {
+                    errorMessage = '文件不是有效的 PDF 格式';
+                } else if (error.name === 'MissingPDFException') {
+                    errorMessage = '找不到 PDF 文件';
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+                
+                // 确保隐藏进度条
+                hideProgress();
+                
+                // 关闭所有PDF转换相关通知
+                const allNotifications = document.querySelectorAll('.notification');
+                allNotifications.forEach(notification => {
+                    if (notification.textContent.includes('PDF') || notification.textContent.includes('转换')) {
+                        const closeBtn = notification.querySelector('.notification-close');
+                        if (closeBtn) {
+                            closeNotification(closeBtn);
+                        }
+                    }
+                });
+                
+                throw new Error(errorMessage);
+            }
+        }
+        window.addEventListener('beforeunload', terminateWorker);
+        
+        // 更新图片状态
+        function updateImageStatus(index, status, text) {
+            const statusElement = document.getElementById(`status-${index}`);
+            if (statusElement) {
+                statusElement.className = `image-status status-${status}`;
+                statusElement.textContent = text;
+            }
+        }
+        
+        // 更新图片项内容（不再在每个图片下显示结果）
+        function updateImageItem(index, text) {
+            // 只更新状态，不显示具体结果
+            console.log(`图片 ${index + 1} 的识别结果已完成，结果将在合并面板中显示`);
+        }
+        
+        // 更新批量进度
+        function updateBatchProgress() {
+            const completed = batchQueue.filter(item => item.status === 'completed' || item.status === 'error').length;
+            const total = batchQueue.length;
+            
+            const progressElement = document.getElementById('batchProgress');
+            if (progressElement) {
+                progressElement.textContent = `${completed}/${total} 完成`;
+            }
+        }
+        
+        // 更新标签页计数
+        function updateTabCounts() {
+            const completed = batchResults.length;
+            const total = batchQueue.length;
+            
+            document.getElementById('batchCount').textContent = `${completed}/${total}`;
+            document.getElementById('combinedCount').textContent = completed > 0 ? '1' : '0';
+        }
+        
+        // 文件大小格式化
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // 完成批量处理
+        function completeBatchProcessing() {
+            isProcessingBatch = false;
+            
+            const completedCount = batchResults.length;
+            const totalCount = batchQueue.length;
+            const errorCount = batchQueue.filter(item => item.status === 'error').length;
+            
+            // 隐藏批量信息面板
+            document.getElementById('batchInfo').classList.remove('show');
+            
+            // 生成合并结果
+            generateCombinedResult();
+            
+            // 显示完成通知
+            let message = `成功处理 ${completedCount} 个文件`;
+            if (errorCount > 0) {
+                message += `，${errorCount} 个文件失败`;
+            }
+            
+            showNotification('批量处理完成', message, completedCount > 0 ? 'success' : 'warning');
+            
+            // 更新标签页计数
+            updateTabCounts();
+            
+            // 确保隐藏进度条
+            hideProgress();
+            
+            // 关闭所有批量处理相关通知
+            const allNotifications = document.querySelectorAll('.notification');
+            allNotifications.forEach(notification => {
+                if (notification.textContent.includes('识别进行中') || 
+                    notification.textContent.includes('正在识别') ||
+                    notification.textContent.includes('批量识别')) {
+                    const closeBtn = notification.querySelector('.notification-close');
+                    if (closeBtn) {
+                        closeNotification(closeBtn);
+                    }
+                }
+            });
+        }
+        
+        // 生成合并结果
+        function generateCombinedResult() {
+            if (batchResults.length === 0) return;
+            
+            let combinedText = '';
+            batchResults.forEach((result, index) => {
+                if (index > 0) {
+                    combinedText += '\n\n';
+                }
+                combinedText += `=== ${result.filename} ===\n`;
+                combinedText += result.text || '（未识别到文字）';
+            });
+            
+            const combinedElement = document.getElementById('combinedResult');
+            if (combinedElement) {
+                combinedElement.textContent = combinedText;
+            }
+            
+            // 更新处理时间显示
+            const timeDisplay = document.getElementById('processingTimeDisplay');
+            if (timeDisplay && processingTotalTime > 0) {
+                const seconds = (processingTotalTime / 1000).toFixed(2);
+                timeDisplay.textContent = `${seconds} 秒`;
+                
+                // 更新处理时间状态类
+                if (processingTotalTime < 5000) {
+                    timeDisplay.className = 'time-display fast';
+                } else if (processingTotalTime < 15000) {
+                    timeDisplay.className = 'time-display medium';
+                } else {
+                    timeDisplay.className = 'time-display slow';
+                }
+            }
+        }
+        
+        // 暂停批量处理
+        function pauseBatchProcessing() {
+            batchPaused = !batchPaused;
+            
+            const btn = event.target;
+            if (batchPaused) {
+                btn.textContent = '继续';
+                showNotification('处理已暂停', '可以点击继续按钮恢复处理', 'info');
+            } else {
+                btn.textContent = '暂停';
+                showNotification('处理已恢复', '批量处理将继续进行', 'info');
+                startBatchProcessing(); // 恢复处理
+            }
+        }
+        
+        // 取消批量处理
+        function cancelBatchProcessing() {
+            isProcessingBatch = false;
+            batchPaused = false;
+            
+            // 隐藏批量信息面板
+            document.getElementById('batchInfo').classList.remove('show');
+            
+            showNotification('批量处理已取消', '已停止所有处理任务', 'info');
+        }
+        
+        // 设置结果标签页事件
+        function setupResultTabs() {
+            console.log('=== 设置结果标签页事件 ===');
+            
+            // 为所有标签页按钮添加点击事件
+            document.querySelectorAll('.result-tab').forEach(tab => {
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const tabName = this.getAttribute('data-tab');
+                    console.log('标签页点击:', tabName);
+                    showResultPanel(tabName);
+                });
+            });
+        }
+        
+        // 显示结果面板
+        function showResultPanel(panelName) {
+            console.log('显示结果面板:', panelName);
+            
+            // 隐藏所有面板
+            document.querySelectorAll('.result-panel').forEach(panel => {
+                panel.classList.remove('active');
+                panel.style.display = 'none';
+            });
+            
+            // 显示指定面板
+            const targetPanel = document.getElementById(panelName + 'Panel');
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+                targetPanel.style.display = 'block';
+                console.log('已显示面板:', panelName + 'Panel');
+            } else {
+                console.error('找不到面板:', panelName + 'Panel');
+            }
+            
+            // 更新标签页按钮状态
+            document.querySelectorAll('.result-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            const targetTab = document.querySelector(`[data-tab="${panelName}"]`);
+            if (targetTab) {
+                targetTab.classList.add('active');
+                console.log('已激活标签页:', panelName);
+            } else {
+                console.error('找不到标签页:', panelName);
+            }
+        }
+    </script>
+</body>
+</html>
