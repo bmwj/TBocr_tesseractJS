@@ -1,13 +1,13 @@
 
-<p style="align: center;">
-
+<div style="text-align: center;">
+  
 # tb_tesseract.js - 藏文文字识别引擎
     
 <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
 <a href="https://gitee.com/Pemawangchuk/tb_tesseract.js"><img src="https://img.shields.io/badge/Gitee-Pemawangchuk-blue.svg" alt="Gitee"></a>
 <a href="https://gitee.com/Pemawangchuk/tb_tesseract.js"><img src="https://gitee.com/Pemawangchuk/tb_tesseract.js/badge/star.svg?theme=dark" alt="star"></a>
 <a href="https://gitee.com/Pemawangchuk/tb_tesseract.js"><img src="https://gitee.com/Pemawangchuk/tb_tesseract.js/badge/fork.svg?theme=dark" alt="fork"></a>
-</p>
+</div>
 
 
 
